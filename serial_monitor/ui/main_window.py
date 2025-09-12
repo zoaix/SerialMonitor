@@ -1,5 +1,5 @@
 import tkinter as tk
-from tkinter import ttk, scrolledtext, messagebox
+from tkinter import ttk, scrolledtext, messagebox,filedialog
 from serial_monitor.serial_io import SerialHandler
 from serial_monitor.config import load_config, save_config, SerialConfig, ENCODINGS
 from serial_monitor.ui.plot_tab import PlotTab
@@ -71,13 +71,21 @@ class MainWindow(tk.Tk):
         output_tab = ttk.Frame(self.notebook)
         self.output_box = scrolledtext.ScrolledText(output_tab, state="disabled")
         self.output_box.pack(expand=True, fill="both")
-        self.input_entry = tk.Entry(output_tab)
-        self.input_entry.pack(side="left", fill="x", expand=True)
         
-        # Send 
-        self.input_entry.bind("<Return>", lambda event: self._send())
+        entry_frame = ttk.Frame(output_tab)
+        entry_frame.pack(side="left", fill="x", expand=True)
+
+        self.input_entry = tk.Entry(entry_frame)
+        self.input_entry.pack(side="left", fill="x", expand=True)
+
+        # маленькая кнопка для выбора файла
+        file_btn = ttk.Button(entry_frame, text="📂", width=3, command=self._send_file)
+        file_btn.pack(side="left", padx=2)
+
         send_btn = ttk.Button(output_tab, text="Send", command=self._send)
         send_btn.pack(side="left", padx=5)
+        
+        self.input_entry.bind("<Return>", lambda event: self._send())
         self.notebook.add(output_tab, text="Console")
 
 
@@ -203,3 +211,25 @@ class MainWindow(tk.Tk):
     def _open_settings(self):
         from serial_monitor.ui.settings_window import SettingsWindow
         SettingsWindow(self)
+        
+    def _send_file(self):
+        if not self.serial_handler or not self.connected:
+            self._flash_button(self.connect_btn, "green")
+            return
+
+        file_path = filedialog.askopenfilename(
+            title="Select file to send",
+            filetypes=[("All files", "*.*")]
+        )
+        if not file_path:
+            return
+
+        try:
+            with open(file_path, "r", encoding="utf-8") as f:
+                content = f.read()
+                self.serial_handler.send(content)
+                mode = self.display_mode.get()
+                formatted = format_data(mode,content)
+                self._append_output(f"[Send File]: {formatted[:200]}{'...' if len(formatted) > 200 else ''}")
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to send file: {e}")
