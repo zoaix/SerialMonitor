@@ -1,0 +1,28 @@
+[project]
+name = "serial-monitor"
+version = "0.1.0"
+description = "A lightweight Python serial port monitor with a Tkinter GUI, featuring console output, message sending, and live data plotting with configurable parsers."
+authors = [
+    {name = "Bolt Hold",email = "bolthold7507@gmail.com"}
+]
+license = {text = "MIT"}
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "tk (>=0.1.0,<0.2.0)",
+    "pyserial (>=3.5,<4.0)",
+    "matplotlib (>=3.10.6,<4.0.0)",
+    "pytest-mock (>=3.15.0,<4.0.0)"
+]
+
+
+[tool.poetry.scripts]
+serial-monitor = "serial_monitor.app:main"
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
