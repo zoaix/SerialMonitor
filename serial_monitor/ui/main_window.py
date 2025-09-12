@@ -3,7 +3,7 @@ from tkinter import ttk, scrolledtext, messagebox
 from serial_monitor.serial_io import SerialHandler
 from serial_monitor.config import load_config, save_config, SerialConfig, ENCODINGS
 from serial_monitor.ui.plot_tab import PlotTab
-
+from serial_monitor.formatters import ENCODINGS, format_data
 
 class MainWindow(tk.Tk):
 
@@ -141,7 +141,8 @@ class MainWindow(tk.Tk):
         if self.serial_handler:
             while not self.serial_handler.queue.empty():
                 raw_line = self.serial_handler.queue.get()
-                line = self._format_data(raw_line)
+                mode = self.display_mode.get()
+                line = format_data(mode, raw_line)
                 self._append_output(f"[Receive]: {line}")
                 self.plot_tab.process_line(raw_line)
         self.after(200, self._update_output)
@@ -156,7 +157,8 @@ class MainWindow(tk.Tk):
         if self.serial_handler and self.connected:
             data = self.input_entry.get()
             self.serial_handler.send(data)
-            formatted = self._format_data(data)
+            mode = self.display_mode.get()
+            formatted = format_data(mode, data)
             self._append_output(f"[Send]: {formatted}")
             self.input_entry.delete(0, "end")
         else:
@@ -197,10 +199,6 @@ class MainWindow(tk.Tk):
         else:
             self.port_cb.set("")
     
-    def _format_data(self, data: str) -> str:
-        mode = self.display_mode.get()
-        encoder = ENCODINGS.get(mode, ENCODINGS["UTF-8"])
-        return encoder(data)
     
     def _open_settings(self):
         from serial_monitor.ui.settings_window import SettingsWindow

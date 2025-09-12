@@ -40,3 +40,10 @@ class SerialHandler:
                 line = self.ser.readline().decode(errors="ignore").strip()
                 if line:
                     self.queue.put(line)
+                    
+    def _read_loop_iteration(self):
+        # For testing
+        if self.ser.in_waiting > 0:
+            line = self.ser.readline().decode(errors="ignore").strip()
+            if line:
+                self.queue.put(line)

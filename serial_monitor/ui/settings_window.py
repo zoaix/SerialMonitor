@@ -1,7 +1,7 @@
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
-from serial_monitor.config import load_config, save_config, ENCODINGS
-
+from serial_monitor.config import load_config, save_config
+from serial_monitor.formatters import ENCODINGS
 
 class SettingsWindow(tk.Toplevel):
     def __init__(self, parent):
