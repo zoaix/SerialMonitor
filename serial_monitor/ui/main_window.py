@@ -4,6 +4,8 @@ from serial_monitor.serial_io import SerialHandler
 from serial_monitor.config import load_config, save_config, SerialConfig, ENCODINGS
 from serial_monitor.ui.plot_tab import PlotTab
 from serial_monitor.formatters import ENCODINGS, format_data
+import threading
+import time
 
 class MainWindow(tk.Tk):
 
@@ -223,13 +225,21 @@ class MainWindow(tk.Tk):
         )
         if not file_path:
             return
-
+        mode = self.display_mode.get()
         try:
             with open(file_path, "r", encoding="utf-8") as f:
-                content = f.read()
-                self.serial_handler.send(content)
-                mode = self.display_mode.get()
-                formatted = format_data(mode,content)
-                self._append_output(f"[Send File]: {formatted[:200]}{'...' if len(formatted) > 200 else ''}")
+                lines = f.readlines()
+
+            delay = getattr(self.config_data, "send_delay_ms", 50) / 1000.0
+
+            def worker():
+                for line in lines:
+                    self.serial_handler.send(line.strip())
+                    formatted = format_data(mode,line.strip())
+                    self._append_output(f"[Send File]: {formatted}")
+                    time.sleep(delay)
+
+            threading.Thread(target=worker, daemon=True).start()
+
         except Exception as e:
             messagebox.showerror("Error", f"Failed to send file: {e}")

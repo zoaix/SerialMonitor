@@ -13,6 +13,7 @@ class SerialConfig:
     dtr_default: bool = True
     rts_default: bool = True
     log_path: str = ""
+    send_delay_ms: int = 50
 
 ENCODINGS = {
         "UTF-8": lambda x: x,

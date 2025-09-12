@@ -18,7 +18,7 @@ class SettingsWindow(tk.Toplevel):
         self.dtr_default = tk.BooleanVar(value=getattr(self.config_data, "dtr_default", True))
         self.rts_default = tk.BooleanVar(value=getattr(self.config_data, "rts_default", True))
         self.log_path = tk.StringVar(value=getattr(self.config_data, "log_path", ""))
-
+        self.send_delay_ms = tk.IntVar(value=getattr(self.config_data, "send_delay_ms", 50))
         self._setup_ui()
 
     def _setup_ui(self):
@@ -54,6 +54,12 @@ class SettingsWindow(tk.Toplevel):
 
         cancel_btn = ttk.Button(btn_frame, text="Cancel", command=self.destroy)
         cancel_btn.pack(side="right")
+        
+        # SENDING DELAY
+    
+        ttk.Label(frame, text="File send delay (ms):").grid(row=4, column=0, sticky="w", pady=5)
+        delay_entry = ttk.Entry(frame, textvariable=self.send_delay_ms, width=6)
+        delay_entry.grid(row=4, column=1, sticky="w")
 
     def _choose_log_path(self):
         filename = filedialog.asksaveasfilename(
@@ -69,5 +75,7 @@ class SettingsWindow(tk.Toplevel):
         self.config_data.dtr_default = self.dtr_default.get()
         self.config_data.rts_default = self.rts_default.get()
         self.config_data.log_path = self.log_path.get()
+        self.config_data.send_delay_ms = self.send_delay_ms.get()
+
         save_config(self.config_data)
         self.destroy()
