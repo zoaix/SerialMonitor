@@ -2,8 +2,9 @@ import tkinter as tk
 from tkinter import ttk, scrolledtext, messagebox,filedialog
 from serial_monitor.serial_io import SerialHandler
 from serial_monitor.config import load_config, save_config, SerialConfig, ENCODINGS
-from serial_monitor.ui.plot_tab import PlotTab
+from serial_monitor.ui.simple_plot import SimplePlot
 from serial_monitor.formatters import ENCODINGS, format_data
+from serial_monitor.parsers import load_parser_config
 import threading
 import time
 
@@ -19,6 +20,10 @@ class MainWindow(tk.Tk):
         self.config_data = load_config()
         self.serial_handler: SerialHandler | None = None
         self.connected = False
+        
+        self.parser = None
+        
+        
         # текущий режим отображения
         self.display_mode = tk.StringVar(
             value=self.config_data.display_mode if hasattr(self.config_data, "display_mode") else "UTF-8"
@@ -106,8 +111,10 @@ class MainWindow(tk.Tk):
         self.rts_cb.pack(side="left", padx=5)
 
         # Вкладка Plot
-        self.plot_tab = PlotTab(self.notebook)
+        self.plot_tab = SimplePlot(self.notebook)
         self.notebook.add(self.plot_tab, text="Plot")
+        self._load_parser()
+
 
     def _toggle_connection(self):
         if self.connected:
@@ -127,8 +134,11 @@ class MainWindow(tk.Tk):
     def _connect(self):
         port = self.port_cb.get()
         baudrate = int(self.baud_cb.get())
-        cfg = SerialConfig(port=port, baudrate=baudrate)
-        cfg.display_mode = self.display_mode.get()
+        cfg = SerialConfig(
+            port=port,
+            baudrate=baudrate,
+            display_mode=self.display_mode.get()
+        )
         save_config(cfg)
 
         try:
@@ -136,8 +146,10 @@ class MainWindow(tk.Tk):
             self.serial_handler.start()
             self.connected = True
             self.connect_btn.config(text="Disconnect")
+            self.plot_tab.set_connected(True)   # <<< ВАЖНО
         except Exception as e:
             messagebox.showerror("Error", str(e))
+
 
     def _disconnect(self):
         if self.serial_handler:
@@ -145,8 +157,8 @@ class MainWindow(tk.Tk):
             self.serial_handler = None
         self.connected = False
         self.connect_btn.config(text="Connect")
-
-
+        self.plot_tab.set_connected(False)
+    
     def _update_output(self):
         if self.serial_handler:
             while not self.serial_handler.queue.empty():
@@ -154,7 +166,8 @@ class MainWindow(tk.Tk):
                 mode = self.display_mode.get()
                 line = format_data(mode, raw_line)
                 self._append_output(f"[Receive]: {line}")
-                self.plot_tab.process_line(raw_line)
+                if self.plot_tab:  
+                    self.plot_tab.add_data(raw_line)
         self.after(200, self._update_output)
 
     def _append_output(self, text: str):
@@ -212,8 +225,26 @@ class MainWindow(tk.Tk):
     
     def _open_settings(self):
         from serial_monitor.ui.settings_window import SettingsWindow
-        SettingsWindow(self)
-        
+        win = SettingsWindow(self)
+        self.wait_window(win)  # ждём пока окно закроется
+        # после закрытия окна подгружаем свежий конфиг
+        self.config_data = load_config()
+        self._load_parser()  # если нужно обновить парсер
+    
+    
+    def _load_parser(self):
+        if self.config_data.parser_path:
+            try:
+                self.parser = load_parser_config(self.config_data.parser_path)
+                self.plot_tab.set_parser(self.parser)
+            except Exception as e:
+                messagebox.showerror("Parser error", f"Failed to load parser: {e}")
+                self.parser = None
+                self.plot_tab.set_parser(None)
+        else:
+            self.parser = None
+            self.plot_tab.set_parser(None)
+    
     def _send_file(self):
         if not self.serial_handler or not self.connected:
             self._flash_button(self.connect_btn, "green")
@@ -227,17 +258,21 @@ class MainWindow(tk.Tk):
             return
         mode = self.display_mode.get()
         try:
-            with open(file_path, "r", encoding="utf-8") as f:
-                lines = f.readlines()
+
 
             delay = getattr(self.config_data, "send_delay_ms", 50) / 1000.0
 
             def worker():
-                for line in lines:
-                    self.serial_handler.send(line.strip())
-                    formatted = format_data(mode,line.strip())
-                    self._append_output(f"[Send File]: {formatted}")
-                    time.sleep(delay)
+                with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
+                    for line in f:
+                        if not self.connected or not self.serial_handler:
+                            break  # соединение разорвано — прекращаем отправку
+
+                        self.serial_handler.send(line.strip())
+                        formatted = format_data(mode, line.strip())
+                        self._append_output(f"[Send]: {formatted}")
+                        time.sleep(delay)
+
 
             threading.Thread(target=worker, daemon=True).start()
 

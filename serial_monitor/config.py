@@ -14,6 +14,7 @@ class SerialConfig:
     rts_default: bool = True
     log_path: str = ""
     send_delay_ms: int = 50
+    parser_path: str = "" 
 
 ENCODINGS = {
         "UTF-8": lambda x: x,

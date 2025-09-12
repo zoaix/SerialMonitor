@@ -1,0 +1,4 @@
+{
+  "type": "regex",
+  "pattern": "TEMP:(?P<TEMP>[0-9.]+) HUM:(?P<HUM>[0-9.]+)"
+}

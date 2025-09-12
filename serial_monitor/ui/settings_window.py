@@ -19,6 +19,7 @@ class SettingsWindow(tk.Toplevel):
         self.rts_default = tk.BooleanVar(value=getattr(self.config_data, "rts_default", True))
         self.log_path = tk.StringVar(value=getattr(self.config_data, "log_path", ""))
         self.send_delay_ms = tk.IntVar(value=getattr(self.config_data, "send_delay_ms", 50))
+        self.parser_path = tk.StringVar(value=getattr(self.config_data, "parser_path", ""))
         self._setup_ui()
 
     def _setup_ui(self):
@@ -60,6 +61,13 @@ class SettingsWindow(tk.Toplevel):
         ttk.Label(frame, text="File send delay (ms):").grid(row=4, column=0, sticky="w", pady=5)
         delay_entry = ttk.Entry(frame, textvariable=self.send_delay_ms, width=6)
         delay_entry.grid(row=4, column=1, sticky="w")
+        
+        # Parser config
+        ttk.Label(frame, text="Parser config:").grid(row=5, column=0, sticky="w", pady=5)
+        parser_entry = ttk.Entry(frame, textvariable=self.parser_path, width=25)
+        parser_entry.grid(row=5, column=1, sticky="w")
+        parser_btn = ttk.Button(frame, text="Browse", command=self._choose_parser_file)
+        parser_btn.grid(row=5, column=2, padx=5)
 
     def _choose_log_path(self):
         filename = filedialog.asksaveasfilename(
@@ -68,6 +76,14 @@ class SettingsWindow(tk.Toplevel):
         )
         if filename:
             self.log_path.set(filename)
+    
+    def _choose_parser_file(self):
+        filename = filedialog.askopenfilename(
+            title="Select parser config",
+            filetypes=[("JSON files", "*.json"), ("All files", "*.*")]
+        )
+        if filename:
+            self.parser_path.set(filename)
 
     def _save(self):
         # обновляем конфиг
@@ -76,6 +92,6 @@ class SettingsWindow(tk.Toplevel):
         self.config_data.rts_default = self.rts_default.get()
         self.config_data.log_path = self.log_path.get()
         self.config_data.send_delay_ms = self.send_delay_ms.get()
-
+        self.config_data.parser_path = self.parser_path.get()
         save_config(self.config_data)
         self.destroy()
