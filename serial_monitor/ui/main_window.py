@@ -1,19 +1,13 @@
 import tkinter as tk
 from tkinter import ttk, scrolledtext, messagebox
 from serial_monitor.serial_io import SerialHandler
-from serial_monitor.config import load_config, save_config, SerialConfig
+from serial_monitor.config import load_config, save_config, SerialConfig, ENCODINGS
 from serial_monitor.ui.plot_tab import PlotTab
 
 
 class MainWindow(tk.Tk):
 
-    ENCODINGS = {
-        "UTF-8": lambda x: x,
-        "ANSI": lambda x: x.encode("utf-8", errors="ignore").decode("latin1", errors="ignore"),
-        "HEX": lambda x: " ".join(f"{ord(c):02X}" for c in x),
-        "DEC": lambda x: " ".join(str(ord(c)) for c in x),
-        "BIN": lambda x: " ".join(f"{ord(c):08b}" for c in x),
-    }
+
 
     def __init__(self):
         super().__init__()
@@ -23,7 +17,6 @@ class MainWindow(tk.Tk):
         self.config_data = load_config()
         self.serial_handler: SerialHandler | None = None
         self.connected = False
-
         # текущий режим отображения
         self.display_mode = tk.StringVar(
             value=self.config_data.display_mode if hasattr(self.config_data, "display_mode") else "UTF-8"
@@ -36,6 +29,15 @@ class MainWindow(tk.Tk):
         # Верхняя панель выбора
         top_frame = ttk.Frame(self)
         top_frame.pack(fill="x")
+        
+        # Меню настроек
+
+        menubar = tk.Menu(self)
+        self.config(menu=menubar)
+
+        settings_menu = tk.Menu(menubar, tearoff=0)
+        settings_menu.add_command(label="Preferences...", command=self._open_settings)
+        menubar.add_cascade(label="Settings", menu=settings_menu)
         
         # Выбор порта
         ttk.Label(top_frame, text="Port:").pack(side="left")
@@ -57,7 +59,7 @@ class MainWindow(tk.Tk):
         # Выбор кодировки
         ttk.Label(top_frame, text="Display:").pack(side="left", padx=5)
         self.display_cb = ttk.Combobox(
-            top_frame, values=tuple(self.ENCODINGS.keys()), textvariable=self.display_mode, width=8
+            top_frame, values=tuple(ENCODINGS.keys()), textvariable=self.display_mode, width=8
         )
         self.display_cb.pack(side="left")
 
@@ -80,8 +82,8 @@ class MainWindow(tk.Tk):
 
 
         # DTR / RTS checkboxes
-        self.dtr_var = tk.BooleanVar(value=True)
-        self.rts_var = tk.BooleanVar(value=True)
+        self.dtr_var = tk.BooleanVar(value=getattr(self.config_data, "dtr_default", True))
+        self.rts_var = tk.BooleanVar(value=getattr(self.config_data, "rts_default", True))
 
         self.dtr_cb = ttk.Checkbutton(
             output_tab, text="DTR", variable=self.dtr_var, command=self._toggle_dtr
@@ -197,5 +199,9 @@ class MainWindow(tk.Tk):
     
     def _format_data(self, data: str) -> str:
         mode = self.display_mode.get()
-        encoder = self.ENCODINGS.get(mode, self.ENCODINGS["UTF-8"])
+        encoder = ENCODINGS.get(mode, ENCODINGS["UTF-8"])
         return encoder(data)
+    
+    def _open_settings(self):
+        from serial_monitor.ui.settings_window import SettingsWindow
+        SettingsWindow(self)

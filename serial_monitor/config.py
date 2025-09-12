@@ -5,13 +5,22 @@ from dataclasses import dataclass, asdict
 CONFIG_FILE = Path.home() / ".serial_monitor.json"
 
 @dataclass
-@dataclass
 class SerialConfig:
     port: str = ""
     baudrate: int = 9600
     bytesize: int = 8
     display_mode: str = "UTF-8"
+    dtr_default: bool = True
+    rts_default: bool = True
+    log_path: str = ""
 
+ENCODINGS = {
+        "UTF-8": lambda x: x,
+        "ANSI": lambda x: x.encode("utf-8", errors="ignore").decode("latin1", errors="ignore"),
+        "HEX": lambda x: " ".join(f"{ord(c):02X}" for c in x),
+        "DEC": lambda x: " ".join(str(ord(c)) for c in x),
+        "BIN": lambda x: " ".join(f"{ord(c):08b}" for c in x),
+    }
 
 def load_config() -> SerialConfig:
     if CONFIG_FILE.exists():
