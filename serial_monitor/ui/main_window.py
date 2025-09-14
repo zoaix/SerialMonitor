@@ -1,21 +1,18 @@
 import tkinter as tk
 from tkinter import ttk, scrolledtext, messagebox, filedialog
-from serial_monitor.serial_io import SerialHandler
-from serial_monitor.config import SerialConfig, ENCODINGS
-from serial_monitor.ui.simple_plot import SimplePlot
-from serial_monitor.formatters import ENCODINGS, format_data
-from serial_monitor.parsers import load_parser_config
+from pathlib import Path
+from serial_monitor.config import ENCODINGS
 from serial_monitor.settings_model import SettingsModel
-import threading
-import time
-from  pathlib import Path
+from serial_monitor.ui.simple_plot import SimplePlot
+from serial_monitor.controllers.serial_controller import SerialController
+from serial_monitor.controllers.output_controller import OutputController
+from serial_monitor.controllers.parser_controller import ParserController
 
-def get_icon(fliepath: str):
+
+def get_icon(filepath: str):
     root_path = Path(__file__).resolve().parents[2]
-    img_path = root_path / fliepath
-    print(img_path)
+    img_path = root_path / filepath
     return tk.PhotoImage(file=str(img_path))
-    
 
 
 class MainWindow(tk.Tk):
@@ -25,98 +22,79 @@ class MainWindow(tk.Tk):
         self.geometry("800x600")
         self.iconphoto(False, get_icon("serial_monitor/ui/static/favico/rs-232-color-96.png"))
 
-        # единый источник настроек
+        # --- зависимости ---
         self.settings = SettingsModel()
+        self.serial = SerialController()
+        self.parser = ParserController()
 
-        self.serial_handler: SerialHandler | None = None
-        self.connected = False
-        self.parser = None
-        
-
-
-        # текущий режим отображения
+        # режим отображения
         self.display_mode = tk.StringVar(value=self.settings.config.display_mode)
 
-
+        # --- UI ---
         self._setup_ui()
+        self.output = OutputController(self.output_box, self.plot_tab)
+
+        # циклический опрос
         self.after(200, self._update_output)
 
     def _setup_ui(self):
-        # Верхняя панель выбора
         top_frame = ttk.Frame(self)
         top_frame.pack(fill="x")
 
-        # Меню настроек
+        
+        # Settings 
         menubar = tk.Menu(self)
         self.config(menu=menubar)
-
         settings_menu = tk.Menu(menubar, tearoff=0)
         settings_menu.add_command(label="Preferences...", command=self._open_settings)
         menubar.add_cascade(label="Settings", menu=settings_menu)
-
-        # Выбор порта
+        
+        # Port
         ttk.Label(top_frame, text="Port:").pack(side="left")
-        self.port_cb = ttk.Combobox(top_frame, values=SerialHandler.available_ports())
+        self.port_cb = ttk.Combobox(top_frame, values=self.serial.available_ports())
         self.port_cb.set(self.settings.config.port)
         self.port_cb.pack(side="left")
         self.port_cb.bind("<Button-1>", lambda e: self._refresh_ports())
-
-        # Выбор скорости
+        self.port_cb.bind("<<ComboboxSelected>>", lambda e: self._on_port_changed()) 
+        
+        # Baudrate
         ttk.Label(top_frame, text="Baudrate:").pack(side="left")
-        self.baud_cb = ttk.Combobox(
-            top_frame, values=[9600, 19200, 38400, 57600, 115200]
-        )
+        self.baud_cb = ttk.Combobox(top_frame, values=[9600, 19200, 38400, 57600, 115200])
         self.baud_cb.set(self.settings.config.baudrate)
         self.baud_cb.pack(side="left")
-        
-        
-        # --- иконки ---
+        self.baud_cb.bind("<<ComboboxSelected>>", lambda e: self._on_port_changed()) 
+
+        # Connect button with icons
         self.icon_connect = get_icon("serial_monitor/ui/static/connect_buttons/connect-color-32.png")
         self.icon_disconnect = get_icon("serial_monitor/ui/static/connect_buttons/disconnect-color-32.png")
 
-        # настройка стиля для кнопки-иконки
         style = ttk.Style(self)
-        style.configure(
-            "Icon.TButton",
-            relief="flat",
-            padding=0,
-            borderwidth=0,
-            padx=5
-        )
-        style.map(
-            "Icon.TButton",
-            relief=[("pressed", "flat"), ("active", "flat")],
-            background=[("pressed", "!disabled", "white"), ("active", "white")]
-        )
-
-        # текущее состояние
-        self.connected = False
-
-        # кнопка через ttk
-        #top_frame = ttk.Frame(self)
-        #top_frame.pack(fill="x")
+        style.configure("Icon.TButton", relief="flat", padding=0, borderwidth=0, padx=5)
+        style.map("Icon.TButton",
+                  relief=[("pressed", "flat"), ("active", "flat")],
+                  background=[("pressed", "!disabled", "white"), ("active", "white")])
 
         self.connect_btn = ttk.Button(
             top_frame,
-            image=self.icon_connect,
+            image=self.icon_disconnect,
             command=self._toggle_connection,
             style="Icon.TButton"
         )
         self.connect_btn.pack(side="left")
-        self.connect_btn.config(image=self.icon_disconnect)
-        
-        # Выбор кодировки
+
+        # Display mode
         ttk.Label(top_frame, text="Display:").pack(side="left", padx=5)
         self.display_cb = ttk.Combobox(
-            top_frame, values=tuple(ENCODINGS.keys()), textvariable=self.display_mode, width=8
+            top_frame, values=tuple(ENCODINGS.keys()),
+            textvariable=self.display_mode, width=8
         )
         self.display_cb.pack(side="left")
 
-        # Основные вкладки
+        # Notebook
         self.notebook = ttk.Notebook(self)
         self.notebook.pack(expand=True, fill="both")
 
-        # Вкладка Output
+        # Output tab
         output_tab = ttk.Frame(self.notebook)
         self.output_box = scrolledtext.ScrolledText(output_tab, state="disabled")
         self.output_box.pack(expand=True, fill="both")
@@ -130,167 +108,95 @@ class MainWindow(tk.Tk):
         file_btn = ttk.Button(entry_frame, text="📂", width=3, command=self._send_file)
         file_btn.pack(side="left", padx=2)
 
-        send_btn = ttk.Button(output_tab, text="Send", command=self._send)
+        send_btn = ttk.Button(entry_frame, text="Send", command=self._send)
         send_btn.pack(side="left", padx=5)
 
-        self.input_entry.bind("<Return>", lambda event: self._send())
+        self.input_entry.bind("<Return>", lambda e: self._send())
         self.notebook.add(output_tab, text="Console")
 
-        # DTR / RTS checkboxes
+        # DTR / RTS
         self.dtr_var = tk.BooleanVar(value=self.settings.config.dtr_default)
         self.rts_var = tk.BooleanVar(value=self.settings.config.rts_default)
 
-        self.dtr_cb = ttk.Checkbutton(
-            output_tab, text="DTR", variable=self.dtr_var, command=self._toggle_dtr
-        )
+        self.dtr_cb = ttk.Checkbutton(output_tab, text="DTR", variable=self.dtr_var,
+                                      command=lambda: self.serial.set_dtr(self.dtr_var.get()))
         self.dtr_cb.pack(side="left", padx=5)
 
-        self.rts_cb = ttk.Checkbutton(
-            output_tab, text="RTS", variable=self.rts_var, command=self._toggle_rts
-        )
+        self.rts_cb = ttk.Checkbutton(output_tab, text="RTS", variable=self.rts_var,
+                                      command=lambda: self.serial.set_rts(self.rts_var.get()))
         self.rts_cb.pack(side="left", padx=5)
 
-        # Вкладка Plot
+        # Plot tab
         self.plot_tab = SimplePlot(self.notebook)
+        
         self.notebook.add(self.plot_tab, text="Plot")
-        self._load_parser()
 
-    def _toggle_connection(self):
-        if self.connected:
-            self._disconnect()
-        else:
-            self._connect()
-
-    def _toggle_dtr(self):
-        if self.serial_handler:
-            self.serial_handler.set_dtr(self.dtr_var.get())
-
-    def _toggle_rts(self):
-        if self.serial_handler:
-            self.serial_handler.set_rts(self.rts_var.get())
-
-    def _connect(self):
-        port = self.port_cb.get()
-        baudrate = int(self.baud_cb.get())
-        self.connected = True
-        self.connect_btn.config(image=self.icon_disconnect)
-        self.settings.update(
-            port=port,
-            baudrate=baudrate,
-            display_mode=self.display_mode.get()
-        )
-        self.settings.save()
-
-        try:
-            self.serial_handler = SerialHandler(port, baudrate)
-            self.serial_handler.start()
-            self.connected = True
-            self.connect_btn.config(image=self.icon_connect)  # переключаем иконку
-            self.plot_tab.set_connected(True)
-        except Exception as e:
-            messagebox.showerror("Error", str(e))
-
-    def _disconnect(self):
-        if self.serial_handler:
-            self.serial_handler.stop()
-            self.serial_handler = None
-        self.connected = False
-        self.connect_btn.config(image=self.icon_disconnect)  # переключаем иконку
-        self.plot_tab.set_connected(False)
-
-    def _update_output(self):
-        if self.serial_handler:
-            while not self.serial_handler.queue.empty():
-                raw_line = self.serial_handler.queue.get()
-                mode = self.display_mode.get()
-                line = format_data(mode, raw_line)
-                self._append_output(f"[Receive]: {line}")
-                if self.plot_tab:
-                    self.plot_tab.add_data(raw_line)
-        self.after(200, self._update_output)
-
-    def _append_output(self, text: str):
-        self.output_box.configure(state="normal")
-        self.output_box.insert("end", text + "\n")
-        self.output_box.configure(state="disabled")
-        self.output_box.yview("end")
-
-    def _send(self):
-        if self.serial_handler and self.connected:
-            data = self.input_entry.get()
-            self.serial_handler.send(data)
-            mode = self.display_mode.get()
-            formatted = format_data(mode, data)
-            self._append_output(f"[Send]: {formatted}")
-            self.input_entry.delete(0, "end")
-        else:
-            self._flash_button(self.connect_btn, "green")
-
-
-    def _flash_button(self, button: ttk.Button, color: str, flashes: int = 3, interval: int = 200):
-        if getattr(button, "_flashing", False):
-            return  # уже мигает
-
-        button._flashing = True
-        style = ttk.Style(self)
-
-        # имя временного стиля для мигания
-        flash_style = "Flash.TButton"
-        normal_style = button.cget("style") or "TButton"
-
-        # сохраним фон по умолчанию
-        default_bg = style.lookup(normal_style, "background")
-
-        def toggle(count=0):
-            if count >= flashes * 2:
-                style.configure(flash_style, background=default_bg)
-                button.configure(style=normal_style)
-                button._flashing = False
-                return
-
-            if count % 2 == 0:
-                style.configure(flash_style, background=color)
-            else:
-                style.configure(flash_style, background=default_bg)
-
-            button.configure(style=flash_style)
-            self.after(interval, lambda: toggle(count + 1))
-
-        toggle()
-
-    def _refresh_ports(self):
-        ports = SerialHandler.available_ports()
-        current = self.port_cb.get()
-        self.port_cb["values"] = ports
-
-        if current in ports:
-            self.port_cb.set(current)
-        elif ports:
-            self.port_cb.set(ports[0])
-        else:
-            self.port_cb.set("")
-
-    def _open_settings(self):
-        from serial_monitor.ui.settings_window import SettingsWindow
-        win = SettingsWindow(self, self.settings)
-        self.wait_window(win)  # ждём закрытия окна
-        self._load_parser()
-
+    
     def _load_parser(self):
         if self.settings.config.parser_path:
             try:
-                self.parser = load_parser_config(self.settings.config.parser_path)
-                self.plot_tab.set_parser(self.parser)
+                self.plot_tab.set_parser(self.parser.load(self.settings.parser_path))
             except Exception as e:
                 messagebox.showerror("Parser error", f"Failed to load parser: {e}")
-                self.parser = None
                 self.plot_tab.set_parser(None)
         else:
-            self.parser = None
             self.plot_tab.set_parser(None)
+    
+    def _connection(self):
+        if not self.serial.connected:
+            baudrate = int(self.baud_cb.get())
+            self.serial.connect(self.port_cb.get(),baudrate )
+            self.connect_btn.config(image=self.icon_connect)
+            self.plot_tab.set_connected(True)
+    
+    def _disconnection(self):
+        self.serial.disconnect()
+        self.connect_btn.config(image=self.icon_disconnect)
+        self.plot_tab.set_connected(False)
+
+    # --- connection ---
+    def _toggle_connection(self):
+        if self.serial.connected:
+            self._disconnection()
+        else:
+            try:
+                self._connection()
+                
+            except Exception as e:
+                messagebox.showerror("Error", str(e))
+
+    def _on_port_changed(self):
+        new_port = self.port_cb.get()
+        if not new_port:
+            return
+
+        if self.serial.connected:
+            self._disconnection()
+            self.after(200, self._connection)
+        else:
+            self.settings.update(port=self.port_cb.get(),baudrate=int(self.baud_cb.get()))
+            self.settings.save()
+            
+    # --- update loop ---
+    def _update_output(self):
+        for raw in self.serial.read_lines():
+            self.output.display_received(raw, self.display_mode.get())
+        self.after(200, self._update_output)
+
+    # --- send data ---
+    def _send(self):
+        data = self.input_entry.get()
+        if not data:
+            return
+        if not self.serial.connected:
+            self._flash_button(self.connect_btn, "green")
+            return
+        self.serial.send(data)
+        self.output.display_sent(data, self.display_mode.get())
+        self.input_entry.delete(0, "end")
 
     def _send_file(self):
-        if not self.serial_handler or not self.connected:
+        if not self.serial.connected:
             self._flash_button(self.connect_btn, "green")
             return
 
@@ -301,17 +207,41 @@ class MainWindow(tk.Tk):
         if not file_path:
             return
 
-        mode = self.display_mode.get()
-        delay = self.settings.config.send_delay_ms / 1000.0
+        self.serial.send_file(file_path, self.output, self.display_mode.get(),
+                              delay=self.settings.config.send_delay_ms/1000.0)
 
-        def worker():
-            with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
-                for line in f:
-                    if not self.connected or not self.serial_handler:
-                        break
-                    self.serial_handler.send(line.strip())
-                    formatted = format_data(mode, line.strip())
-                    self._append_output(f"[Send]: {formatted}")
-                    time.sleep(delay)
+    # --- helpers ---
+    def _refresh_ports(self):
+        ports = self.serial.available_ports()
+        self.port_cb["values"] = ports
+        if self.port_cb.get() not in ports and ports:
+            self.port_cb.set(ports[0])
 
-        threading.Thread(target=worker, daemon=True).start()
+    
+    def _flash_button(self, button: ttk.Button, color: str, flashes: int = 3, interval: int = 200):
+        if getattr(button, "_flashing", False):
+            return
+        button._flashing = True
+        style = ttk.Style(self)
+        flash_style = "Flash.TButton"
+        normal_style = button.cget("style") or "TButton"
+        default_bg = style.lookup(normal_style, "background")
+
+        def toggle(count=0):
+            if count >= flashes * 2:
+                style.configure(flash_style, background=default_bg)
+                button.configure(style=normal_style)
+                button._flashing = False
+                return
+            style.configure(flash_style, background=color if count % 2 == 0 else default_bg)
+            button.configure(style=flash_style)
+            self.after(interval, lambda: toggle(count + 1))
+
+        toggle()
+        
+    def _open_settings(self):
+        from serial_monitor.ui.settings_window import SettingsWindow
+
+        win = SettingsWindow(self, self.settings)
+        self.wait_window(win)  # ждём закрытия окна
+        self._load_parser()

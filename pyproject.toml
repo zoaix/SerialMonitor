@@ -1,6 +1,6 @@
 [project]
 name = "serial-monitor"
-version = "0.1.0"
+version = "0.1.2"
 description = "A lightweight Python serial port monitor with a Tkinter GUI, featuring console output, message sending, and live data plotting with configurable parsers."
 authors = [
     {name = "Bolt Hold",email = "bolthold7507@gmail.com"}

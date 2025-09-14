@@ -3,7 +3,6 @@ import time
 import numpy as np
 import random
 
-
 class SimplePlot(tk.Frame):
     def __init__(self, parent, time_window=10):
         super().__init__(parent)
