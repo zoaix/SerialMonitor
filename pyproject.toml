@@ -11,7 +11,6 @@ requires-python = ">=3.12"
 dependencies = [
     "tk (>=0.1.0,<0.2.0)",
     "pyserial (>=3.5,<4.0)",
-    "matplotlib (>=3.10.6,<4.0.0)",
     "pytest-mock (>=3.15.0,<4.0.0)"
 ]
 

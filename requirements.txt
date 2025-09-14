@@ -1,0 +1,10 @@
+colorama==0.4.6
+iniconfig==2.1.0
+packaging==25.0
+pluggy==1.6.0
+Pygments==2.19.2
+pyserial==3.5
+pytest==8.4.2
+pytest-mock==3.15.0
+-e git+https://github.com/boltholds/serial-monitor.git@65e1207c3f176479c9f9e3280b79363d3620e949#egg=serial_monitor
+tk==0.1.0
