@@ -21,7 +21,7 @@ class SimplePlot(tk.Frame):
         self.time_scales = [1, 5, 10, 30, 60, 120, 300, 600]
         self.time_index = self.time_scales.index(time_window) if time_window in self.time_scales else 2
         self.time_window = self.time_scales[self.time_index]
-
+        self.frame_ms_delay = 100
         # ручной масштаб Y (None = авто)
         self.y_max_manual = None
 
@@ -35,7 +35,7 @@ class SimplePlot(tk.Frame):
         self.canvas.bind("<Button-4>", self._on_zoom)     # Linux scroll up
         self.canvas.bind("<Button-5>", self._on_zoom)     # Linux scroll down
 
-        self.after(100, self._refresh_plot)
+        self._update_frame()
 
     def _on_zoom(self, event):
         """Масштабирование: без Shift — время, с Shift — Y"""
@@ -130,6 +130,10 @@ class SimplePlot(tk.Frame):
             self.canvas.create_line(x0 - 5, y, x0, y, fill="black", tags="axes")
             self.canvas.create_text(5, y, text=f"{val:.1f}", anchor="w", tags="axes")
 
+    def _update_frame(self):
+        self.after(self.frame_ms_delay, self._refresh_plot)
+    
+    
     def _refresh_plot(self):
         self.canvas.delete("lines")
         w = self.canvas.winfo_width()
@@ -139,7 +143,7 @@ class SimplePlot(tk.Frame):
         now = time.time()
 
         if not self.data_history:
-            self.after(100, self._refresh_plot)
+            self._update_frame()
             return
 
         min_t = now - self.time_window if self.time_window and not self.frozen else \
@@ -150,7 +154,7 @@ class SimplePlot(tk.Frame):
             for t, v in series if not self.time_window or t >= min_t
         ]
         if not all_values:
-            self.after(100, self._refresh_plot)
+            self._update_frame()
             return
 
         min_v, max_v = min(all_values), max(all_values)
@@ -173,9 +177,9 @@ class SimplePlot(tk.Frame):
             ys = [y0 - (v - min_v) / (max_v - min_v) * plot_h for _, v in points]
 
             coords = list(np.ravel(np.column_stack([xs, ys])))
-            self.canvas.create_line(*coords, fill=self.colors[key], width=2, tags="lines")
+            self.canvas.create_line(*coords, fill=self.colors[key], width=3, tags="lines")
 
-        self.after(100, self._refresh_plot)
+        self._update_frame()
 
     # --- интеграция с MainWindow ---
     def set_parser(self, parser):

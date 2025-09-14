@@ -8,6 +8,14 @@ from serial_monitor.parsers import load_parser_config
 from serial_monitor.settings_model import SettingsModel
 import threading
 import time
+from  pathlib import Path
+
+def get_icon(fliepath: str):
+    root_path = Path(__file__).resolve().parents[2]
+    img_path = root_path / fliepath
+    print(img_path)
+    return tk.PhotoImage(file=str(img_path))
+    
 
 
 class MainWindow(tk.Tk):
@@ -15,6 +23,7 @@ class MainWindow(tk.Tk):
         super().__init__()
         self.title("Serial Monitor")
         self.geometry("800x600")
+        self.iconphoto(False, get_icon("serial_monitor/ui/static/favico/rs-232-color-96.png"))
 
         # единый источник настроек
         self.settings = SettingsModel()
@@ -22,9 +31,12 @@ class MainWindow(tk.Tk):
         self.serial_handler: SerialHandler | None = None
         self.connected = False
         self.parser = None
+        
+
 
         # текущий режим отображения
         self.display_mode = tk.StringVar(value=self.settings.config.display_mode)
+
 
         self._setup_ui()
         self.after(200, self._update_output)
@@ -56,11 +68,43 @@ class MainWindow(tk.Tk):
         )
         self.baud_cb.set(self.settings.config.baudrate)
         self.baud_cb.pack(side="left")
+        
+        
+        # --- иконки ---
+        self.icon_connect = get_icon("serial_monitor/ui/static/connect_buttons/connect-color-32.png")
+        self.icon_disconnect = get_icon("serial_monitor/ui/static/connect_buttons/disconnect-color-32.png")
 
-        # Кнопка Connect\Disconnect
-        self.connect_btn = tk.Button(top_frame, text="Connect", command=self._toggle_connection)
+        # настройка стиля для кнопки-иконки
+        style = ttk.Style(self)
+        style.configure(
+            "Icon.TButton",
+            relief="flat",
+            padding=0,
+            borderwidth=0,
+            padx=5
+        )
+        style.map(
+            "Icon.TButton",
+            relief=[("pressed", "flat"), ("active", "flat")],
+            background=[("pressed", "!disabled", "white"), ("active", "white")]
+        )
+
+        # текущее состояние
+        self.connected = False
+
+        # кнопка через ttk
+        #top_frame = ttk.Frame(self)
+        #top_frame.pack(fill="x")
+
+        self.connect_btn = ttk.Button(
+            top_frame,
+            image=self.icon_connect,
+            command=self._toggle_connection,
+            style="Icon.TButton"
+        )
         self.connect_btn.pack(side="left")
-
+        self.connect_btn.config(image=self.icon_disconnect)
+        
         # Выбор кодировки
         ttk.Label(top_frame, text="Display:").pack(side="left", padx=5)
         self.display_cb = ttk.Combobox(
@@ -128,8 +172,8 @@ class MainWindow(tk.Tk):
     def _connect(self):
         port = self.port_cb.get()
         baudrate = int(self.baud_cb.get())
-
-        # обновляем модель, сохраняем
+        self.connected = True
+        self.connect_btn.config(image=self.icon_disconnect)
         self.settings.update(
             port=port,
             baudrate=baudrate,
@@ -141,7 +185,7 @@ class MainWindow(tk.Tk):
             self.serial_handler = SerialHandler(port, baudrate)
             self.serial_handler.start()
             self.connected = True
-            self.connect_btn.config(text="Disconnect")
+            self.connect_btn.config(image=self.icon_connect)  # переключаем иконку
             self.plot_tab.set_connected(True)
         except Exception as e:
             messagebox.showerror("Error", str(e))
@@ -151,7 +195,7 @@ class MainWindow(tk.Tk):
             self.serial_handler.stop()
             self.serial_handler = None
         self.connected = False
-        self.connect_btn.config(text="Connect")
+        self.connect_btn.config(image=self.icon_disconnect)  # переключаем иконку
         self.plot_tab.set_connected(False)
 
     def _update_output(self):
@@ -182,24 +226,34 @@ class MainWindow(tk.Tk):
         else:
             self._flash_button(self.connect_btn, "green")
 
-    def _flash_button(self, button: tk.Button, color: str, flashes: int = 3, interval: int = 200):
+
+    def _flash_button(self, button: ttk.Button, color: str, flashes: int = 3, interval: int = 200):
         if getattr(button, "_flashing", False):
             return  # уже мигает
 
         button._flashing = True
-        default_color = button.cget("background")
+        style = ttk.Style(self)
+
+        # имя временного стиля для мигания
+        flash_style = "Flash.TButton"
+        normal_style = button.cget("style") or "TButton"
+
+        # сохраним фон по умолчанию
+        default_bg = style.lookup(normal_style, "background")
 
         def toggle(count=0):
             if count >= flashes * 2:
-                button.config(background=default_color)
+                style.configure(flash_style, background=default_bg)
+                button.configure(style=normal_style)
                 button._flashing = False
                 return
 
             if count % 2 == 0:
-                button.config(background=color)
+                style.configure(flash_style, background=color)
             else:
-                button.config(background=default_color)
+                style.configure(flash_style, background=default_bg)
 
+            button.configure(style=flash_style)
             self.after(interval, lambda: toggle(count + 1))
 
         toggle()
