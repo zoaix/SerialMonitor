@@ -4,11 +4,20 @@ from dataclasses import dataclass, asdict
 
 CONFIG_FILE = Path.home() / ".serial_monitor.json"
 
+PARITY_OPTIONS = {
+    "None": "N",
+    "Even": "E",
+    "Odd": "O",
+    "Mark": "M",
+    "Space": "S",
+}
+
 @dataclass
 class SerialConfig:
     port: str = ""
     baudrate: int = 9600
     bytesize: int = 8
+    parity: str = "N"
     display_mode: str = "UTF-8"
     dtr_default: bool = True
     rts_default: bool = True

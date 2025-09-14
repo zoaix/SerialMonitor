@@ -1,13 +1,14 @@
 import tkinter as tk
 from tkinter import ttk, filedialog
 from serial_monitor.formatters import ENCODINGS
+from serial_monitor.config import PARITY_OPTIONS
 
 class SettingsWindow(tk.Toplevel):
     def __init__(self, parent, model):
         super().__init__(parent)
         self.model = model
         self.title("Settings")
-        self.geometry("400x250")
+        self.geometry("400x300")
         self.resizable(False, False)
 
         # tk-переменные инициализируются значениями из модели
@@ -17,6 +18,7 @@ class SettingsWindow(tk.Toplevel):
         self.log_path = tk.StringVar(value=model.config.log_path)
         self.send_delay_ms = tk.IntVar(value=model.config.send_delay_ms)
         self.parser_path = tk.StringVar(value=model.config.parser_path)
+        self.parity = tk.StringVar(value=ENCODINGS.get(model.parity,"None"))  # используем человекочитаемое имя
 
         self._setup_ui()
 
@@ -30,28 +32,34 @@ class SettingsWindow(tk.Toplevel):
                                   textvariable=self.display_mode, width=10)
         display_cb.grid(row=0, column=1, sticky="w")
 
+        # Parity selector
+        ttk.Label(frame, text="Parity:").grid(row=1, column=0, sticky="w", pady=5)
+        parity_cb = ttk.Combobox(frame, values=list(PARITY_OPTIONS.keys()),
+                                 textvariable=self.parity, width=10, state="readonly")
+        parity_cb.grid(row=1, column=1, sticky="w")
+
         # DTR / RTS defaults
         ttk.Checkbutton(frame, text="DTR enabled by default", variable=self.dtr_default)\
-            .grid(row=1, column=0, columnspan=2, sticky="w", pady=5)
-
-        ttk.Checkbutton(frame, text="RTS enabled by default", variable=self.rts_default)\
             .grid(row=2, column=0, columnspan=2, sticky="w", pady=5)
 
+        ttk.Checkbutton(frame, text="RTS enabled by default", variable=self.rts_default)\
+            .grid(row=3, column=0, columnspan=2, sticky="w", pady=5)
+
         # Log path
-        ttk.Label(frame, text="Log file:").grid(row=3, column=0, sticky="w", pady=5)
+        ttk.Label(frame, text="Log file:").grid(row=4, column=0, sticky="w", pady=5)
         entry = ttk.Entry(frame, textvariable=self.log_path, width=25)
-        entry.grid(row=3, column=1, sticky="w")
-        ttk.Button(frame, text="Browse", command=self._choose_log_path).grid(row=3, column=2, padx=5)
+        entry.grid(row=4, column=1, sticky="w")
+        ttk.Button(frame, text="Browse", command=self._choose_log_path).grid(row=4, column=2, padx=5)
 
         # File send delay
-        ttk.Label(frame, text="File send delay (ms):").grid(row=4, column=0, sticky="w", pady=5)
-        ttk.Entry(frame, textvariable=self.send_delay_ms, width=6).grid(row=4, column=1, sticky="w")
+        ttk.Label(frame, text="File send delay (ms):").grid(row=5, column=0, sticky="w", pady=5)
+        ttk.Entry(frame, textvariable=self.send_delay_ms, width=6).grid(row=5, column=1, sticky="w")
 
         # Parser config
-        ttk.Label(frame, text="Parser config:").grid(row=5, column=0, sticky="w", pady=5)
+        ttk.Label(frame, text="Parser config:").grid(row=6, column=0, sticky="w", pady=5)
         parser_entry = ttk.Entry(frame, textvariable=self.parser_path, width=25)
-        parser_entry.grid(row=5, column=1, sticky="w")
-        ttk.Button(frame, text="Browse", command=self._choose_parser_file).grid(row=5, column=2, padx=5)
+        parser_entry.grid(row=6, column=1, sticky="w")
+        ttk.Button(frame, text="Browse", command=self._choose_parser_file).grid(row=6, column=2, padx=5)
 
         # Buttons
         btn_frame = ttk.Frame(self)
@@ -76,6 +84,7 @@ class SettingsWindow(tk.Toplevel):
             self.parser_path.set(filename)
 
     def _save(self):
+        self.model.parity = self.parity.get()
         self.model.update(
             display_mode=self.display_mode.get(),
             dtr_default=self.dtr_default.get(),

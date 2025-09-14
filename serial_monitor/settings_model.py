@@ -1,8 +1,36 @@
-from serial_monitor.config import load_config, save_config, SerialConfig
+from serial_monitor.config import load_config, save_config, SerialConfig, PARITY_OPTIONS
+
 
 class SettingsModel:
     def __init__(self):
         self._config: SerialConfig = load_config()
+
+    @property
+    def bytesize(self):
+        return self._config.bytesize
+
+    @bytesize.setter
+    def bytesize(self, value):
+        self._config.bytesize = value
+
+
+    @property
+    def baudrate(self):
+        return self._config.baudrate
+
+    @baudrate.setter
+    def baudrate(self, value):
+        self._config.baudrate = value
+
+
+    @property
+    def port(self):
+        return self._config.port
+
+    @port.setter
+    def port(self, value):
+        self._config.port = value
+
 
     @property
     def display_mode(self):
@@ -53,6 +81,24 @@ class SettingsModel:
         self._config.parser_path = value
 
     @property
+    def parity(self):
+        for name, code in PARITY_OPTIONS.items():
+            if self._config.parity == code:
+                return code
+        return self._config.parity  # fallback
+
+    @parity.setter
+    def parity(self, value):
+        if value in PARITY_OPTIONS:
+            self._config.parity = PARITY_OPTIONS[value]
+        elif value in PARITY_OPTIONS.values():
+            self._config.parity = value
+        else:
+            raise ValueError(f"Invalid parity: {value}")
+        print(f"In config set to {self._config.parity}")
+
+
+    @property
     def config(self) -> SerialConfig:
         return self._config
 
@@ -63,3 +109,5 @@ class SettingsModel:
 
     def save(self):
         save_config(self._config)
+        
+        

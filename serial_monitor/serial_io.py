@@ -5,8 +5,17 @@ from queue import Queue
 
 
 class SerialHandler:
-    def __init__(self, port: str, baudrate: int, bytesize: int = 8):
-        self.ser = serial.Serial(port, baudrate, bytesize=bytesize, timeout=0.5)
+    def __init__(self, port: str, baudrate: int, bytesize: int = 8, parity: str = "N",timeout=50):
+        
+        if timeout:
+           timeout = timeout / 1000 #Because we give timout in ms 
+        self.ser = serial.Serial(
+            port=port, 
+            baudrate=baudrate, 
+            bytesize=bytesize,
+            parity=parity, 
+            timeout=timeout
+            )
         self.queue: Queue[str] = Queue()
         self.stop_event = Event()
         self.thread = Thread(target=self._read_loop, daemon=True)

@@ -1,14 +1,23 @@
 import threading
 import time
 from serial_monitor.serial_io import SerialHandler
+from serial_monitor.settings_model import SettingsModel
 
 class SerialController:
     def __init__(self):
         self.handler: SerialHandler | None = None
         self.connected = False
+        
 
-    def connect(self, port: str, baudrate: int):
-        self.handler = SerialHandler(port, baudrate)
+    def connect(self):
+        self.settings = SettingsModel()
+        self.handler = SerialHandler(
+            port=self.settings.port, 
+            baudrate=self.settings.baudrate,
+            bytesize=self.settings.bytesize,
+            parity=self.settings.parity,
+            timeout=self.settings.send_delay_ms
+            )
         self.handler.start()
         self.connected = True
 

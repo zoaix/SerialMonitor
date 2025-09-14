@@ -55,14 +55,15 @@ class MainWindow(tk.Tk):
         self.port_cb.set(self.settings.config.port)
         self.port_cb.pack(side="left")
         self.port_cb.bind("<Button-1>", lambda e: self._refresh_ports())
-        self.port_cb.bind("<<ComboboxSelected>>", lambda e: self._on_port_changed()) 
+        self.port_cb.bind("<<ComboboxSelected>>", lambda e: self._on_connection_settings_changed()) 
         
         # Baudrate
         ttk.Label(top_frame, text="Baudrate:").pack(side="left")
         self.baud_cb = ttk.Combobox(top_frame, values=[9600, 19200, 38400, 57600, 115200])
         self.baud_cb.set(self.settings.config.baudrate)
         self.baud_cb.pack(side="left")
-        self.baud_cb.bind("<<ComboboxSelected>>", lambda e: self._on_port_changed()) 
+        self.baud_cb.bind("<<ComboboxSelected>>", lambda e: self._on_connection_settings_changed()) 
+
 
         # Connect button with icons
         self.icon_connect = get_icon("serial_monitor/ui/static/connect_buttons/connect-color-32.png")
@@ -144,8 +145,8 @@ class MainWindow(tk.Tk):
     
     def _connection(self):
         if not self.serial.connected:
-            baudrate = int(self.baud_cb.get())
-            self.serial.connect(self.port_cb.get(),baudrate )
+            
+            self.serial.connect()
             self.connect_btn.config(image=self.icon_connect)
             self.plot_tab.set_connected(True)
     
@@ -165,18 +166,23 @@ class MainWindow(tk.Tk):
             except Exception as e:
                 messagebox.showerror("Error", str(e))
 
-    def _on_port_changed(self):
+    def _on_connection_settings_changed(self):
         new_port = self.port_cb.get()
-        if not new_port:
+        new_baudrate = int(self.baud_cb.get())
+        if (not new_port) and (new_baudrate>0):
             return
-
+        
         if self.serial.connected:
             self._disconnection()
             self.after(200, self._connection)
         else:
-            self.settings.update(port=self.port_cb.get(),baudrate=int(self.baud_cb.get()))
-            self.settings.save()
-            
+            try:
+                self.settings.port = new_port
+                self.settings.baudrate= new_baudrate
+                self.settings.save()
+            except ValueError as e:
+                messagebox.showerror("Invalid parameter", str(e)) 
+    
     # --- update loop ---
     def _update_output(self):
         for raw in self.serial.read_lines():
@@ -245,3 +251,6 @@ class MainWindow(tk.Tk):
         win = SettingsWindow(self, self.settings)
         self.wait_window(win)  # ждём закрытия окна
         self._load_parser()
+        if self.serial.connected:
+            self._disconnection()
+            self.after(200, self._connection)
