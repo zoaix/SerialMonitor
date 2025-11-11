@@ -18,9 +18,7 @@ def get_icon(filepath: str):
 class MainWindow(tk.Tk):
     def __init__(self):
         super().__init__()
-        self.title("Serial Monitor")
         self.geometry("800x600")
-        self.iconphoto(False, get_icon("serial_monitor/ui/static/favico/rs-232-color-96.png"))
 
         # --- зависимости ---
         self.settings = SettingsModel()
@@ -36,6 +34,9 @@ class MainWindow(tk.Tk):
 
         # циклический опрос
         self.after(200, self._update_output)
+
+        # заголовок и иконка
+        self._update_window_title()
 
     def _setup_ui(self):
         top_frame = ttk.Frame(self)
@@ -149,11 +150,13 @@ class MainWindow(tk.Tk):
             self.serial.connect()
             self.connect_btn.config(image=self.icon_connect)
             self.plot_tab.set_connected(True)
+        self._update_window_title()
     
     def _disconnection(self):
         self.serial.disconnect()
         self.connect_btn.config(image=self.icon_disconnect)
         self.plot_tab.set_connected(False)
+        self._update_window_title()
 
     # --- connection ---
     def _toggle_connection(self):
@@ -165,6 +168,7 @@ class MainWindow(tk.Tk):
                 
             except Exception as e:
                 messagebox.showerror("Error", str(e))
+        self._update_window_title()
 
     def _on_connection_settings_changed(self):
         new_port = self.port_cb.get()
@@ -182,6 +186,7 @@ class MainWindow(tk.Tk):
                 self.settings.save()
             except ValueError as e:
                 messagebox.showerror("Invalid parameter", str(e)) 
+        self._update_window_title()
     
     # --- update loop ---
     def _update_output(self):
@@ -254,3 +259,8 @@ class MainWindow(tk.Tk):
         if self.serial.connected:
             self._disconnection()
             self.after(200, self._connection)
+
+    def _update_window_title(self):
+        if self.serial.connected: self.iconphoto(False, self.icon_connect)
+        else: self.iconphoto(False, self.icon_disconnect)
+        self.title(f"{self.settings.port} {self.settings.baudrate}")
